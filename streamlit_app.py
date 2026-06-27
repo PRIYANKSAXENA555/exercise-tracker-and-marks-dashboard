@@ -28,7 +28,7 @@ st.set_page_config(
 # ================================================================
 
 # Replace with your Google Apps Script Web App URL
-APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'
+APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw90nk3QsKwXZ8mLEsKB93p_93PYqTxUuS9NKuPx3B_ywHEEV5yULBicZVDobKCCCwshg/exec'
 
 # ================================================================
 # AUTHENTICATION FUNCTIONS
