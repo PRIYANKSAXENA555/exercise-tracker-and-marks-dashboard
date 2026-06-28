@@ -1,13 +1,12 @@
 # ================================================================
 # BAKLIWAL TUTORIALS - JEE STUDENT MARKS DASHBOARD
-# With Single Sign-On (SSO) Support
+# With Dropdown for Student Names & Lowercase Password
 # ================================================================
 
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
 import requests
 import json
 import re
@@ -17,7 +16,7 @@ import re
 # ================================================================
 
 st.set_page_config(
-    page_title="Bakliwal Tutorials - Marks Dashboard",
+    page_title="Bakliwal Tutorials - JEE Marks Dashboard",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -27,25 +26,48 @@ st.set_page_config(
 # GOOGLE APPS SCRIPT API CONFIGURATION
 # ================================================================
 
-# Replace with your Google Apps Script Web App URL
-APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw90nk3QsKwXZ8mLEsKB93p_93PYqTxUuS9NKuPx3B_ywHEEV5yULBicZVDobKCCCwshg/exec'
+APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'
 
 # ================================================================
 # AUTHENTICATION FUNCTIONS
 # ================================================================
 
+@st.cache_data(ttl=300)
+def get_student_names_from_api():
+    """Fetch all student names from Google Sheet for dropdown"""
+    try:
+        response = requests.get(APPS_SCRIPT_URL, params={
+            'action': 'getNames'
+        }, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('success'):
+                return data.get('names', [])
+        return []
+            
+    except requests.exceptions.RequestException as e:
+        st.error(f"⚠️ Connection error: {str(e)}")
+        return []
+    except Exception as e:
+        st.error(f"⚠️ Error: {str(e)}")
+        return []
+
 def get_student_data_from_api(name, mother_name):
     """Fetch student marks from Google Apps Script API"""
     try:
+        # Convert mother name to lowercase for authentication
+        mother_name_lower = mother_name.lower().strip()
+        
         response = requests.get(APPS_SCRIPT_URL, params={
             'name': name,
-            'motherName': mother_name
+            'motherName': mother_name_lower
         }, timeout=10)
         
         if response.status_code == 200:
             return response.json()
         else:
-            return {'success': False, 'message': 'API request failed'}
+            return {'success': False, 'message': f'API request failed: {response.status_code}'}
             
     except requests.exceptions.RequestException as e:
         return {'success': False, 'message': f'Connection error: {str(e)}'}
@@ -59,6 +81,7 @@ def authenticate_student(name, mother_name):
     if result.get('success'):
         return result
     else:
+        st.error(f"❌ {result.get('message', 'Authentication failed')}")
         return None
 
 # ================================================================
@@ -66,7 +89,7 @@ def authenticate_student(name, mother_name):
 # ================================================================
 
 def render_login_page():
-    """Render the login page"""
+    """Render the login page with dropdown for student names"""
     st.markdown("""
     <style>
     .login-container {
@@ -123,6 +146,20 @@ def render_login_page():
     .badge-physics { background: #4299e1; }
     .badge-chemistry { background: #ed8936; }
     .badge-maths { background: #9f7aea; }
+    .stSelectbox label {
+        font-weight: 500;
+        color: #333;
+    }
+    .stTextInput label {
+        font-weight: 500;
+        color: #333;
+    }
+    .note {
+        font-size: 12px;
+        color: #888;
+        text-align: center;
+        margin-top: 5px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -133,8 +170,10 @@ def render_login_page():
 
     # Check if this is an SSO login
     if sso_name and sso_mother:
-        with st.spinner("Authenticating..."):
-            result = authenticate_student(sso_name, sso_mother)
+        with st.spinner("🔐 Authenticating..."):
+            # Convert mother name to lowercase for SSO
+            sso_mother_lower = sso_mother.lower().strip()
+            result = authenticate_student(sso_name, sso_mother_lower)
             if result:
                 st.session_state['student_data'] = result
                 st.session_state['logged_in'] = True
@@ -148,23 +187,47 @@ def render_login_page():
         st.markdown('<div class="login-title">📊 Bakliwal Tutorials</div>', unsafe_allow_html=True)
         st.markdown('<div class="login-subtitle">JEE 2027 - Marks Dashboard</div>', unsafe_allow_html=True)
         
+        # Fetch student names for dropdown
+        student_names = get_student_names_from_api()
+        
         with st.form("login_form"):
-            name = st.text_input("👤 Your Full Name", placeholder="Enter your full name")
-            mother_name = st.text_input("👩 Mother's Name", placeholder="Enter your mother's name", type="password")
+            if student_names:
+                # Dropdown for student names
+                name = st.selectbox(
+                    "👤 Select Your Name",
+                    options=student_names,
+                    placeholder="Select your name from the list"
+                )
+            else:
+                # Fallback to text input if API fails
+                st.warning("⚠️ Could not load student list. Please enter your name manually.")
+                name = st.text_input("👤 Your Full Name", placeholder="Enter your full name as in records")
+            
+            # Mother's name as password (will be converted to lowercase)
+            mother_name = st.text_input(
+                "👩 Mother's Name (Password)",
+                placeholder="Enter your mother's name (case insensitive)",
+                type="password"
+            )
+            
+            st.markdown('<p class="note">💡 Mother\'s name is case-insensitive (converted to lowercase automatically)</p>', unsafe_allow_html=True)
+            
             submitted = st.form_submit_button("🔓 View My Results")
             
             if submitted:
                 if not name or not mother_name:
-                    st.error("Please enter both Name and Mother's Name")
+                    st.error("⚠️ Please select your name and enter mother's name")
                 else:
-                    with st.spinner("Fetching your data..."):
-                        result = authenticate_student(name, mother_name)
+                    with st.spinner("📊 Fetching your data..."):
+                        # Convert mother name to lowercase
+                        mother_name_lower = mother_name.lower().strip()
+                        result = authenticate_student(name, mother_name_lower)
                         if result:
                             st.session_state['student_data'] = result
                             st.session_state['logged_in'] = True
                             st.rerun()
                         else:
-                            st.error("❌ Invalid Name or Mother's Name")
+                            st.error("❌ Invalid Name or Mother's Name. Please check and try again.")
         
         st.markdown("""
         <div class="teacher-info">
@@ -172,6 +235,8 @@ def render_login_page():
             <span class="teacher-badge badge-physics">Physics</span> Physics Teacher / physics_teacher
             <span class="teacher-badge badge-chemistry">Chemistry</span> Chemistry Teacher / chemistry_teacher
             <span class="teacher-badge badge-maths">Mathematics</span> Maths Teacher / maths_teacher
+            <br><br>
+            <strong>👨‍🎓 Students:</strong> Select your name from dropdown, then enter Mother's Name
         </div>
         """, unsafe_allow_html=True)
         
@@ -183,7 +248,7 @@ def render_dashboard(data):
     tests = data['tests']
     stats = data['stats']
     
-    # Header
+    # Header with student info
     st.markdown(f"""
     <style>
     .header {{
@@ -264,7 +329,7 @@ def render_dashboard(data):
                 yaxis_title="Marks",
                 yaxis_range=[0, max(max_marks) * 1.1],
                 showlegend=False,
-                height=300,
+                height=350,
                 margin=dict(l=0, r=0, t=20, b=0)
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -272,13 +337,15 @@ def render_dashboard(data):
     with col2:
         st.subheader("📈 Performance Trend")
         if len(tests) >= 2:
-            # Show trend for last 5 tests
             trend_tests = tests[:5]
             trend_data = []
             for test in reversed(trend_tests):
                 total_percent = float(test['percentage'])
+                test_name = test['testName']
+                if len(test_name) > 15:
+                    test_name = test_name[:15] + '...'
                 trend_data.append({
-                    'Test': test['testName'][:15] + '...' if len(test['testName']) > 15 else test['testName'],
+                    'Test': test_name,
                     'Percentage': total_percent
                 })
             
@@ -293,38 +360,32 @@ def render_dashboard(data):
             fig.update_layout(
                 yaxis_title="Percentage (%)",
                 yaxis_range=[0, 100],
-                height=300,
+                height=350,
                 margin=dict(l=0, r=0, t=20, b=0),
                 showlegend=False
             )
             fig.update_traces(line_color='#667eea', line_width=2)
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Need at least 2 tests to show trend")
+            st.info("📊 Need at least 2 tests to show trend")
     
     # Complete Test History
     st.markdown("---")
     st.subheader("📋 Complete Test History")
     
-    # Prepare data for table
     table_data = []
     for test in tests:
         percent = float(test['percentage'])
         rank = test['rank']
         
-        # Determine performance level
         if percent >= 75:
             performance = "🏆 Excellent"
-            color = "#28a745"
         elif percent >= 60:
             performance = "✅ Good"
-            color = "#17a2b8"
         elif percent >= 45:
             performance = "📖 Average"
-            color = "#ffc107"
         else:
             performance = "📚 Needs Improvement"
-            color = "#dc3545"
         
         table_data.append({
             "Test": test['testName'],
@@ -341,46 +402,17 @@ def render_dashboard(data):
     st.dataframe(
         df_table,
         use_container_width=True,
-        column_config={
-            "Performance": st.column_config.Column(
-                "Performance",
-                help="Performance level based on percentage",
-                width="medium"
-            )
-        },
         height=400
     )
     
-    # Download option
     csv = df_table.to_csv(index=False)
     st.download_button(
         label="📥 Download Results as CSV",
         data=csv,
         file_name=f"{student['name']}_results.csv",
-        mime="text/csv"
+        mime="text/csv",
+        use_container_width=True
     )
-
-def render_teacher_dashboard(data):
-    """Render teacher dashboard view"""
-    st.markdown("""
-    <style>
-    .teacher-header {
-        background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        color: white;
-        padding: 20px 30px;
-        border-radius: 15px;
-        margin-bottom: 25px;
-    }
-    </style>
-    <div class="teacher-header">
-        <h1>👨‍🏫 Teacher Dashboard</h1>
-        <p>Welcome, {name}! You can view all student data here.</p>
-    </div>
-    """.format(name=data['student']['name']), unsafe_allow_html=True)
-    
-    # Show all students data
-    st.info("📊 Teacher View: Showing all student data")
-    # Add teacher-specific functionality here
 
 # ================================================================
 # MAIN APP
@@ -404,7 +436,7 @@ def main():
         render_login_page()
     else:
         data = st.session_state['student_data']
-        if data.get('success'):
+        if data and data.get('success'):
             render_dashboard(data)
         else:
             st.error("❌ Failed to load data")
