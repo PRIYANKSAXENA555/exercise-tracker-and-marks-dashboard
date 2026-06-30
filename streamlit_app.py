@@ -26,7 +26,7 @@ st.set_page_config(
 # GOOGLE APPS SCRIPT API CONFIGURATION
 # ================================================================
 
-APPS_SCRIPT_URL = 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec'
+APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw065HYIQAUcsAbV3mUklMWneWu33Z_cD8dlMzWbBwpgHs1NCZ9-q3c-DoeHziCK6cwHA/exec'
 
 # ================================================================
 # AUTHENTICATION FUNCTIONS
